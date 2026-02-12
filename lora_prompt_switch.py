@@ -33,6 +33,7 @@ class LoRAPromptSwitch:
                 "positive_prompt": ("STRING", {"forceInput": True, "default": ""}),
                 "negative_prompt": ("STRING", {"forceInput": True, "default": ""}),
                 "prompt_separator": ("STRING", {"default": ", "}),
+                "trailing_separator": ("BOOLEAN", {"default": True}),
             }
         }
 
@@ -47,6 +48,7 @@ class LoRAPromptSwitch:
         positive_prompt = kwargs.get("positive_prompt", "")
         negative_prompt = kwargs.get("negative_prompt", "")
         prompt_separator = kwargs.get("prompt_separator", ", ")
+        trailing_separator = kwargs.get("trailing_separator", True)
 
         if positive_prompt is None:
             positive_prompt = ""
@@ -57,7 +59,9 @@ class LoRAPromptSwitch:
 
         if not enable:
             _log(f"[LoRAPromptSwitch] DISABLED - passing through")
-            return (model, clip, positive_prompt, negative_prompt)
+            out_pos = _append_text(positive_prompt, "", prompt_separator, trailing_separator)
+            out_neg = _append_text(negative_prompt, "", prompt_separator, trailing_separator)
+            return (model, clip, out_pos, out_neg)
 
         # Load LoRA
         lora_path = folder_paths.get_full_path("loras", lora_name)
@@ -69,8 +73,8 @@ class LoRAPromptSwitch:
         _log(f"[LoRAPromptSwitch] Model before: {id(model)}, after: {id(model_lora)}")
 
         # Append prompt text
-        out_positive = _append_text(positive_prompt, add_positive, prompt_separator)
-        out_negative = _append_text(negative_prompt, add_negative, prompt_separator)
+        out_positive = _append_text(positive_prompt, add_positive, prompt_separator, trailing_separator)
+        out_negative = _append_text(negative_prompt, add_negative, prompt_separator, trailing_separator)
 
         return (model_lora, clip_lora, out_positive, out_negative)
 
@@ -104,6 +108,7 @@ class DualLoRAPromptSwitch:
                 "positive_prompt": ("STRING", {"forceInput": True, "default": ""}),
                 "negative_prompt": ("STRING", {"forceInput": True, "default": ""}),
                 "prompt_separator": ("STRING", {"default": ", "}),
+                "trailing_separator": ("BOOLEAN", {"default": True}),
             }
         }
 
@@ -122,6 +127,7 @@ class DualLoRAPromptSwitch:
         positive_prompt = kwargs.get("positive_prompt", "")
         negative_prompt = kwargs.get("negative_prompt", "")
         prompt_separator = kwargs.get("prompt_separator", ", ")
+        trailing_separator = kwargs.get("trailing_separator", True)
 
         if positive_prompt is None:
             positive_prompt = ""
@@ -133,8 +139,10 @@ class DualLoRAPromptSwitch:
 
         if not enable:
             _log(f"[DualLoRAPromptSwitch] DISABLED - passing through")
+            out_pos = _append_text(positive_prompt, "", prompt_separator, trailing_separator)
+            out_neg = _append_text(negative_prompt, "", prompt_separator, trailing_separator)
             return (model_high, clip_high, model_low, clip_low,
-                    positive_prompt, negative_prompt)
+                    out_pos, out_neg)
 
         # Load LoRA for high noise model
         lora_high_path = folder_paths.get_full_path("loras", lora_high)
@@ -155,8 +163,8 @@ class DualLoRAPromptSwitch:
         _log(f"[DualLoRAPromptSwitch] LOW Model before: {id(model_low)}, after: {id(model_low_out)}")
 
         # Append prompt text (shared for both)
-        out_positive = _append_text(positive_prompt, add_positive, prompt_separator)
-        out_negative = _append_text(negative_prompt, add_negative, prompt_separator)
+        out_positive = _append_text(positive_prompt, add_positive, prompt_separator, trailing_separator)
+        out_negative = _append_text(negative_prompt, add_negative, prompt_separator, trailing_separator)
 
         return (model_high_out, clip_high_out, model_low_out, clip_low_out,
                 out_positive, out_negative)
@@ -178,6 +186,7 @@ class TextPromptSwitch:
             "optional": {
                 "input_text": ("STRING", {"forceInput": True, "default": ""}),
                 "separator": ("STRING", {"default": ", "}),
+                "trailing_separator": ("BOOLEAN", {"default": True}),
             }
         }
 
@@ -189,23 +198,34 @@ class TextPromptSwitch:
     def apply(self, enable, text, **kwargs):
         input_text = kwargs.get("input_text", "")
         separator = kwargs.get("separator", ", ")
+        trailing_separator = kwargs.get("trailing_separator", True)
 
         if input_text is None:
             input_text = ""
 
         if not enable:
-            return (input_text,)
+            return (_append_text(input_text, "", separator, trailing_separator),)
 
-        return (_append_text(input_text, text, separator),)
+        return (_append_text(input_text, text, separator, trailing_separator),)
 
 
-def _append_text(existing, addition, separator):
+def _append_text(existing, addition, separator, trailing=False):
     """Append text with separator if both are non-empty."""
     if not addition.strip():
-        return existing
-    if existing.strip():
-        return existing + separator + addition
-    return addition
+        result = existing
+    else:
+        # Strip trailing separator from existing to avoid doubles
+        clean = existing
+        sep_stripped = separator.rstrip()
+        if sep_stripped and clean.rstrip().endswith(sep_stripped):
+            clean = clean.rstrip()[:-len(sep_stripped)].rstrip()
+        if clean.strip():
+            result = clean + separator + addition
+        else:
+            result = addition
+    if trailing and result.strip():
+        result = result.rstrip() + separator
+    return result
 
 
 NODE_CLASS_MAPPINGS = {
