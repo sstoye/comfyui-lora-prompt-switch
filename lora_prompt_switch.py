@@ -172,7 +172,7 @@ class TextPromptSwitch:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "enable": ("BOOLEAN", {"forceInput": True, "default": True}),
+                "enable": ("BOOLEAN", {"default": True}),
                 "text": ("STRING", {"default": "", "multiline": True, "placeholder": "Text to append when enabled"}),
             },
             "optional": {
