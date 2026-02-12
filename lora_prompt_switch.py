@@ -2,6 +2,13 @@ import folder_paths
 import comfy.utils
 import comfy.sd
 
+DEBUG = False
+
+
+def _log(msg):
+    if DEBUG:
+        print(msg)
+
 
 class LoRAPromptSwitch:
     """
@@ -46,20 +53,20 @@ class LoRAPromptSwitch:
         if negative_prompt is None:
             negative_prompt = ""
 
-        print(f"[LoRAPromptSwitch] enable={enable}, lora={lora_name}, strength={strength}")
+        _log(f"[LoRAPromptSwitch] enable={enable}, lora={lora_name}, strength={strength}")
 
         if not enable:
-            print(f"[LoRAPromptSwitch] DISABLED - passing through")
+            _log(f"[LoRAPromptSwitch] DISABLED - passing through")
             return (model, clip, positive_prompt, negative_prompt)
 
         # Load LoRA
         lora_path = folder_paths.get_full_path("loras", lora_name)
-        print(f"[LoRAPromptSwitch] Loading LoRA from: {lora_path}")
+        _log(f"[LoRAPromptSwitch] Loading LoRA from: {lora_path}")
         lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
         model_lora, clip_lora = comfy.sd.load_lora_for_models(
             model, clip, lora, strength, strength
         )
-        print(f"[LoRAPromptSwitch] Model before: {id(model)}, after: {id(model_lora)}")
+        _log(f"[LoRAPromptSwitch] Model before: {id(model)}, after: {id(model_lora)}")
 
         # Append prompt text
         out_positive = _append_text(positive_prompt, add_positive, prompt_separator)
@@ -121,31 +128,31 @@ class DualLoRAPromptSwitch:
         if negative_prompt is None:
             negative_prompt = ""
 
-        print(f"[DualLoRAPromptSwitch] enable={enable}, lora_high={lora_high}, lora_low={lora_low}")
-        print(f"[DualLoRAPromptSwitch] clip_high={'connected' if clip_high is not None else 'NONE'}, clip_low={'connected' if clip_low is not None else 'NONE'}")
+        _log(f"[DualLoRAPromptSwitch] enable={enable}, lora_high={lora_high}, lora_low={lora_low}")
+        _log(f"[DualLoRAPromptSwitch] clip_high={'connected' if clip_high is not None else 'NONE'}, clip_low={'connected' if clip_low is not None else 'NONE'}")
 
         if not enable:
-            print(f"[DualLoRAPromptSwitch] DISABLED - passing through")
+            _log(f"[DualLoRAPromptSwitch] DISABLED - passing through")
             return (model_high, clip_high, model_low, clip_low,
                     positive_prompt, negative_prompt)
 
         # Load LoRA for high noise model
         lora_high_path = folder_paths.get_full_path("loras", lora_high)
-        print(f"[DualLoRAPromptSwitch] Loading HIGH LoRA from: {lora_high_path}")
+        _log(f"[DualLoRAPromptSwitch] Loading HIGH LoRA from: {lora_high_path}")
         lora_high_data = comfy.utils.load_torch_file(lora_high_path, safe_load=True)
         model_high_out, clip_high_out = comfy.sd.load_lora_for_models(
             model_high, clip_high, lora_high_data, strength_high, strength_high
         )
-        print(f"[DualLoRAPromptSwitch] HIGH Model before: {id(model_high)}, after: {id(model_high_out)}")
+        _log(f"[DualLoRAPromptSwitch] HIGH Model before: {id(model_high)}, after: {id(model_high_out)}")
 
         # Load LoRA for low noise model
         lora_low_path = folder_paths.get_full_path("loras", lora_low)
-        print(f"[DualLoRAPromptSwitch] Loading LOW LoRA from: {lora_low_path}")
+        _log(f"[DualLoRAPromptSwitch] Loading LOW LoRA from: {lora_low_path}")
         lora_low_data = comfy.utils.load_torch_file(lora_low_path, safe_load=True)
         model_low_out, clip_low_out = comfy.sd.load_lora_for_models(
             model_low, clip_low, lora_low_data, strength_low, strength_low
         )
-        print(f"[DualLoRAPromptSwitch] LOW Model before: {id(model_low)}, after: {id(model_low_out)}")
+        _log(f"[DualLoRAPromptSwitch] LOW Model before: {id(model_low)}, after: {id(model_low_out)}")
 
         # Append prompt text (shared for both)
         out_positive = _append_text(positive_prompt, add_positive, prompt_separator)
