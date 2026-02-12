@@ -83,6 +83,10 @@ Restart ComfyUI. The nodes appear under the **loaders/lora** and **text** catego
 4. Type prompt additions into `add_positive` / `add_negative`
 5. Chain multiple nodes by connecting `model` -> `model` and `positive_prompt` -> `positive_prompt` to build a switchable stack
 
+## Note
+
+This project was mostly AI-generated using [Claude Code](https://claude.com/claude-code).
+
 ## License
 
 MIT
