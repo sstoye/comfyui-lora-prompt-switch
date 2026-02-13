@@ -1,3 +1,4 @@
+import json
 import folder_paths
 import comfy.utils
 import comfy.sd
@@ -73,8 +74,10 @@ class LoRAPromptSwitch:
         _log(f"[LoRAPromptSwitch] Model before: {id(model)}, after: {id(model_lora)}")
 
         # Append prompt text
-        out_positive = _append_text(positive_prompt, add_positive, prompt_separator, trailing_separator)
-        out_negative = _append_text(negative_prompt, add_negative, prompt_separator, trailing_separator)
+        resolved_pos = _parse_toggle_list(add_positive, prompt_separator)
+        resolved_neg = _parse_toggle_list(add_negative, prompt_separator)
+        out_positive = _append_text(positive_prompt, resolved_pos, prompt_separator, trailing_separator)
+        out_negative = _append_text(negative_prompt, resolved_neg, prompt_separator, trailing_separator)
 
         return (model_lora, clip_lora, out_positive, out_negative)
 
@@ -163,8 +166,10 @@ class DualLoRAPromptSwitch:
         _log(f"[DualLoRAPromptSwitch] LOW Model before: {id(model_low)}, after: {id(model_low_out)}")
 
         # Append prompt text (shared for both)
-        out_positive = _append_text(positive_prompt, add_positive, prompt_separator, trailing_separator)
-        out_negative = _append_text(negative_prompt, add_negative, prompt_separator, trailing_separator)
+        resolved_pos = _parse_toggle_list(add_positive, prompt_separator)
+        resolved_neg = _parse_toggle_list(add_negative, prompt_separator)
+        out_positive = _append_text(positive_prompt, resolved_pos, prompt_separator, trailing_separator)
+        out_negative = _append_text(negative_prompt, resolved_neg, prompt_separator, trailing_separator)
 
         return (model_high_out, clip_high_out, model_low_out, clip_low_out,
                 out_positive, out_negative)
@@ -222,6 +227,30 @@ def _append_text(existing, addition, separator, trailing=False):
     if trailing and result:
         result = result + separator
     return result
+
+
+def _parse_toggle_list(raw_value, separator):
+    """Parse a toggle-list JSON string into combined text.
+
+    Accepts JSON array [{"text": "...", "enabled": true}, ...] or plain text.
+    Returns only enabled entries joined by separator. Plain text returned as-is.
+    """
+    if not raw_value or not raw_value.strip():
+        return ""
+    stripped = raw_value.strip()
+    if stripped.startswith("["):
+        try:
+            entries = json.loads(stripped)
+            if isinstance(entries, list):
+                sep_stripped = separator.strip()
+                enabled = [
+                    e["text"] for e in entries
+                    if isinstance(e, dict) and e.get("enabled", True) and e.get("text", "").strip()
+                ]
+                return (sep_stripped + " ").join(enabled) if enabled else ""
+        except (json.JSONDecodeError, KeyError, TypeError):
+            pass
+    return stripped
 
 
 NODE_CLASS_MAPPINGS = {
