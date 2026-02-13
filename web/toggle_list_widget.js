@@ -76,6 +76,25 @@ function injectStyles() {
         .toggle-list-add-btn:hover {
             background: #444;
         }
+        .toggle-list-entries {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            max-height: 200px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #555 #1a1a1a;
+        }
+        .toggle-list-entries::-webkit-scrollbar {
+            width: 6px;
+        }
+        .toggle-list-entries::-webkit-scrollbar-track {
+            background: #1a1a1a;
+        }
+        .toggle-list-entries::-webkit-scrollbar-thumb {
+            background: #555;
+            border-radius: 3px;
+        }
         .toggle-list-label {
             font-size: 10px;
             color: #888;
@@ -153,9 +172,13 @@ function replaceWithToggleList(node, widgetName) {
     const origWidget = node.widgets[origWidgetIndex];
     const origValue = origWidget.value || "";
 
-    // Remove original widget's DOM element if it has one
+    // Fully clean up the original widget
+    origWidget.onRemove?.();
     if (origWidget.inputEl) {
         origWidget.inputEl.remove();
+    }
+    if (origWidget.element) {
+        origWidget.element.remove();
     }
 
     // Internal state
@@ -206,9 +229,13 @@ function replaceWithToggleList(node, widgetName) {
             container.removeChild(container.lastChild);
         }
 
+        // Scrollable entries wrapper
+        const entriesDiv = document.createElement("div");
+        entriesDiv.className = "toggle-list-entries";
         entries.forEach((entry, index) => {
-            container.appendChild(createEntryRow(entry, index));
+            entriesDiv.appendChild(createEntryRow(entry, index));
         });
+        container.appendChild(entriesDiv);
 
         // Add button
         const addBtn = document.createElement("button");
