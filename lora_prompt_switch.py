@@ -210,21 +210,17 @@ class TextPromptSwitch:
 
 
 def _append_text(existing, addition, separator, trailing=False):
-    """Append text with separator if both are non-empty."""
-    if not addition.strip():
-        result = existing
+    """Append text with separator, clean up empty segments."""
+    raw = existing + separator + addition if addition.strip() else existing
+    # Split on the separator's core punctuation, keep only non-empty parts
+    sep_stripped = separator.strip()
+    if sep_stripped:
+        parts = [p.strip() for p in raw.split(sep_stripped) if p.strip()]
+        result = (sep_stripped + " ").join(parts) if parts else ""
     else:
-        # Strip trailing separator from existing to avoid doubles
-        clean = existing
-        sep_stripped = separator.rstrip()
-        if sep_stripped and clean.rstrip().endswith(sep_stripped):
-            clean = clean.rstrip()[:-len(sep_stripped)].rstrip()
-        if clean.strip():
-            result = clean + separator + addition
-        else:
-            result = addition
-    if trailing and result.strip():
-        result = result.rstrip() + separator
+        result = raw.strip()
+    if trailing and result:
+        result = result + separator
     return result
 
 
