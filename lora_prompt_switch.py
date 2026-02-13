@@ -50,8 +50,6 @@ class LoRAPromptSwitch:
         enable = kwargs.get("enable", True)
         positive_prompt = kwargs.get("positive_prompt", "")
         negative_prompt = kwargs.get("negative_prompt", "")
-        prompt_separator = kwargs.get("prompt_separator", ", ")
-        trailing_separator = kwargs.get("trailing_separator", True)
 
         if positive_prompt is None:
             positive_prompt = ""
@@ -62,9 +60,7 @@ class LoRAPromptSwitch:
 
         if not enable:
             _log(f"[LoRAPromptSwitch] DISABLED - passing through")
-            out_pos = _append_text(positive_prompt, "", prompt_separator, trailing_separator)
-            out_neg = _append_text(negative_prompt, "", prompt_separator, trailing_separator)
-            return (model, clip, out_pos, out_neg)
+            return (model, clip, _append_text(positive_prompt, ""), _append_text(negative_prompt, ""))
 
         # Load LoRA
         lora_path = folder_paths.get_full_path("loras", lora_name)
@@ -76,10 +72,10 @@ class LoRAPromptSwitch:
         _log(f"[LoRAPromptSwitch] Model before: {id(model)}, after: {id(model_lora)}")
 
         # Append prompt text
-        resolved_pos = _parse_toggle_list(add_positive, prompt_separator)
-        resolved_neg = _parse_toggle_list(add_negative, prompt_separator)
-        out_positive = _append_text(positive_prompt, resolved_pos, prompt_separator, trailing_separator)
-        out_negative = _append_text(negative_prompt, resolved_neg, prompt_separator, trailing_separator)
+        resolved_pos = _parse_toggle_list(add_positive)
+        resolved_neg = _parse_toggle_list(add_negative)
+        out_positive = _append_text(positive_prompt, resolved_pos)
+        out_negative = _append_text(negative_prompt, resolved_neg)
 
         return (model_lora, clip_lora, out_positive, out_negative)
 
@@ -133,8 +129,6 @@ class DualLoRAPromptSwitch:
         clip_low = kwargs.get("clip_low", None)
         positive_prompt = kwargs.get("positive_prompt", "")
         negative_prompt = kwargs.get("negative_prompt", "")
-        prompt_separator = kwargs.get("prompt_separator", ", ")
-        trailing_separator = kwargs.get("trailing_separator", True)
 
         if positive_prompt is None:
             positive_prompt = ""
@@ -146,10 +140,8 @@ class DualLoRAPromptSwitch:
 
         if not enable:
             _log(f"[DualLoRAPromptSwitch] DISABLED - passing through")
-            out_pos = _append_text(positive_prompt, "", prompt_separator, trailing_separator)
-            out_neg = _append_text(negative_prompt, "", prompt_separator, trailing_separator)
             return (model_high, clip_high, model_low, clip_low,
-                    out_pos, out_neg)
+                    _append_text(positive_prompt, ""), _append_text(negative_prompt, ""))
 
         # Load LoRA for high noise model
         lora_high_path = folder_paths.get_full_path("loras", lora_high)
@@ -170,10 +162,10 @@ class DualLoRAPromptSwitch:
         _log(f"[DualLoRAPromptSwitch] LOW Model before: {id(model_low)}, after: {id(model_low_out)}")
 
         # Append prompt text (shared for both)
-        resolved_pos = _parse_toggle_list(add_positive, prompt_separator)
-        resolved_neg = _parse_toggle_list(add_negative, prompt_separator)
-        out_positive = _append_text(positive_prompt, resolved_pos, prompt_separator, trailing_separator)
-        out_negative = _append_text(negative_prompt, resolved_neg, prompt_separator, trailing_separator)
+        resolved_pos = _parse_toggle_list(add_positive)
+        resolved_neg = _parse_toggle_list(add_negative)
+        out_positive = _append_text(positive_prompt, resolved_pos)
+        out_negative = _append_text(negative_prompt, resolved_neg)
 
         return (model_high_out, clip_high_out, model_low_out, clip_low_out,
                 out_positive, out_negative)
@@ -206,38 +198,31 @@ class TextPromptSwitch:
 
     def apply(self, enable, text, **kwargs):
         input_text = kwargs.get("input_text", "")
-        separator = kwargs.get("separator", ", ")
-        trailing_separator = kwargs.get("trailing_separator", True)
 
         if input_text is None:
             input_text = ""
 
         if not enable:
-            return (_append_text(input_text, "", separator, trailing_separator),)
+            return (_append_text(input_text, ""),)
 
-        return (_append_text(input_text, text, separator, trailing_separator),)
+        return (_append_text(input_text, text),)
 
 
-def _append_text(existing, addition, separator, trailing=False):
-    """Append text with separator, clean up empty segments."""
-    raw = existing + separator + addition if addition.strip() else existing
-    # Split on the separator's core punctuation, keep only non-empty parts
-    sep_stripped = separator.strip()
-    if sep_stripped:
-        parts = [p.strip() for p in raw.split(sep_stripped) if p.strip()]
-        result = (sep_stripped + " ").join(parts) if parts else ""
-    else:
-        result = raw.strip()
-    if trailing and result:
-        result = result + separator
+def _append_text(existing, addition):
+    """Append text with comma separator and trailing comma."""
+    raw = existing + ", " + addition if addition.strip() else existing
+    parts = [p.strip() for p in raw.split(",") if p.strip()]
+    result = ", ".join(parts) if parts else ""
+    if result:
+        result = result + ", "
     return result
 
 
-def _parse_toggle_list(raw_value, separator):
+def _parse_toggle_list(raw_value):
     """Parse a toggle-list JSON string into combined text.
 
     Accepts JSON array [{"text": "...", "enabled": true}, ...] or plain text.
-    Returns only enabled entries joined by separator. Plain text returned as-is.
+    Returns only enabled entries joined by comma. Plain text returned as-is.
     """
     if not raw_value or not raw_value.strip():
         return ""
@@ -246,12 +231,11 @@ def _parse_toggle_list(raw_value, separator):
         try:
             entries = json.loads(stripped)
             if isinstance(entries, list):
-                sep_stripped = separator.strip()
                 enabled = [
                     e["text"] for e in entries
                     if isinstance(e, dict) and e.get("enabled", True) and e.get("text", "").strip()
                 ]
-                return (sep_stripped + " ").join(enabled) if enabled else ""
+                return ", ".join(enabled) if enabled else ""
         except (json.JSONDecodeError, KeyError, TypeError):
             pass
     return stripped

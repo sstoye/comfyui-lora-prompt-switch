@@ -535,6 +535,13 @@ app.registerExtension({
             replaceWithToggleList(this, "add_positive");
             replaceWithToggleList(this, "add_negative");
 
+            // Hide separator widgets (kept in array for backward compat)
+            for (const w of this.widgets) {
+                if (w.name === "prompt_separator" || w.name === "trailing_separator") {
+                    hideWidget(w);
+                }
+            }
+
             // Color feedback based on enable toggle
             addEnableColorFeedback(this);
 

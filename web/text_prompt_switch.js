@@ -5,10 +5,30 @@ const COLORS = {
     disabled: { color: "#322", bgcolor: "#422" },
 };
 
+function hideWidget(widget) {
+    widget.type = "hidden";
+    widget.hidden = true;
+    widget.computeSize = () => [0, -4];
+    widget.draw = function () {};
+}
+
 app.registerExtension({
-    name: "comfyui-lora-prompt-switch.textPromptSwitchColors",
+    name: "comfyui-lora-prompt-switch.textPromptSwitch",
     nodeCreated(node) {
         if (node.comfyClass !== "TextPromptSwitch") return;
+
+        // Hide separator widgets (kept in array for backward compat)
+        for (const w of node.widgets || []) {
+            if (w.name === "separator" || w.name === "trailing_separator") {
+                hideWidget(w);
+            }
+        }
+
+        // Resize after hiding widgets
+        requestAnimationFrame(() => {
+            node.setSize(node.computeSize());
+            app.graph.setDirtyCanvas(true, false);
+        });
 
         const origOnDrawForeground = node.onDrawForeground;
         node.onDrawForeground = function (ctx) {

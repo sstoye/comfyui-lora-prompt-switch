@@ -7,7 +7,7 @@ Custom nodes for ComfyUI that combine LoRA loading with prompt text injection an
 - **Toggle list UI** for prompt tags — each trigger word gets its own enable/disable checkbox
 - **Compact lora+strength combo row** — lora dropdown and strength in a single line
 - **Color feedback** — nodes tint green when enabled, red when disabled
-- **Trailing separator** — clean chaining with automatic comma handling
+- **Automatic comma chaining** — trailing comma for clean multi-node prompt composition
 - **Notes field** — store lora links, usage hints, or trigger word documentation
 - **Backward compatible** — old workflows with plain text fields load correctly
 
@@ -30,8 +30,6 @@ Loads a LoRA and appends prompt text when enabled. When disabled, model/clip and
 | enable | BOOLEAN | (optional) Toggle this LoRA on/off, default on |
 | positive_prompt | STRING | (optional) Incoming positive prompt to extend |
 | negative_prompt | STRING | (optional) Incoming negative prompt to extend |
-| prompt_separator | STRING | (optional) Separator between prompt parts, default `", "` |
-| trailing_separator | BOOLEAN | (optional) Append separator at end for chaining, default on |
 | notes | STRING | (optional) Notes, links, usage hints (not used in output) |
 
 **Outputs:** `model`, `clip`, `positive_prompt`, `negative_prompt`
@@ -57,8 +55,6 @@ Same concept but for two model/clip pairs (e.g. high-noise and low-noise models 
 | clip_low | CLIP | (optional) CLIP for low-noise model |
 | positive_prompt | STRING | (optional) Incoming positive prompt |
 | negative_prompt | STRING | (optional) Incoming negative prompt |
-| prompt_separator | STRING | (optional) Separator, default `", "` |
-| trailing_separator | BOOLEAN | (optional) Trailing separator for chaining, default on |
 | notes | STRING | (optional) Notes, links, usage hints |
 
 **Outputs:** `model_high`, `clip_high`, `model_low`, `clip_low`, `positive_prompt`, `negative_prompt`
@@ -74,8 +70,6 @@ A simple text switch node. Appends text to an input string when enabled, passes 
 | enable | BOOLEAN | Toggle on/off |
 | text | STRING | Text to append when enabled |
 | input_text | STRING | (optional) Incoming text to extend |
-| separator | STRING | (optional) Separator, default `", "` |
-| trailing_separator | BOOLEAN | (optional) Trailing separator for chaining, default on |
 
 **Outputs:** `text`
 
