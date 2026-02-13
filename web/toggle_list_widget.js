@@ -101,6 +101,43 @@ function injectStyles() {
             padding: 2px 0 0 0;
             user-select: none;
         }
+        .lora-combo-row {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            width: 100%;
+            box-sizing: border-box;
+            padding: 2px 4px;
+        }
+        .lora-combo-row select {
+            flex: 1;
+            height: 24px;
+            background: #2a2a2a;
+            color: #ddd;
+            border: 1px solid #444;
+            border-radius: 3px;
+            font-size: 11px;
+            min-width: 0;
+        }
+        .lora-combo-row select:focus {
+            outline: 1px solid #5ae;
+            border-color: #5ae;
+        }
+        .lora-combo-row input[type="number"] {
+            width: 60px;
+            height: 24px;
+            background: #2a2a2a;
+            color: #ddd;
+            border: 1px solid #444;
+            border-radius: 3px;
+            padding: 0 4px;
+            font-size: 11px;
+            flex-shrink: 0;
+        }
+        .lora-combo-row input[type="number"]:focus {
+            outline: 1px solid #5ae;
+            border-color: #5ae;
+        }
     `;
     document.head.appendChild(style);
 }
@@ -163,6 +200,83 @@ function trySplitEntry(entries, index, renderEntries, node) {
         node.setSize(node.computeSize());
         app.graph.setDirtyCanvas(true, false);
     });
+}
+
+function mergeLoraStrength(node, loraName, strengthName) {
+    const loraWidget = node.widgets.find((w) => w.name === loraName);
+    const strengthWidget = node.widgets.find((w) => w.name === strengthName);
+    if (!loraWidget || !strengthWidget) return;
+
+    // Get lora options from the combo widget
+    const loraOptions = loraWidget.options?.values || [];
+
+    // Create combined container
+    const container = document.createElement("div");
+    container.className = "lora-combo-row";
+
+    // Select dropdown
+    const select = document.createElement("select");
+    loraOptions.forEach((opt) => {
+        const option = document.createElement("option");
+        option.value = opt;
+        option.textContent = opt;
+        if (opt === loraWidget.value) option.selected = true;
+        select.appendChild(option);
+    });
+    select.addEventListener("change", () => {
+        loraWidget.value = select.value;
+        loraWidget.callback?.(select.value);
+    });
+    preventCanvasDrag(select);
+
+    // Strength input
+    const strengthInput = document.createElement("input");
+    strengthInput.type = "number";
+    strengthInput.value = strengthWidget.value;
+    strengthInput.step = 0.01;
+    strengthInput.min = -10;
+    strengthInput.max = 10;
+    strengthInput.title = "Strength";
+    strengthInput.addEventListener("change", () => {
+        const val = parseFloat(strengthInput.value) || 0;
+        strengthWidget.value = val;
+        strengthWidget.callback?.(val);
+    });
+    preventCanvasDrag(strengthInput);
+
+    container.appendChild(select);
+    container.appendChild(strengthInput);
+
+    // Hide original widgets visually (keep for serialization)
+    loraWidget.type = "hidden";
+    loraWidget.computeSize = () => [0, -4];
+    strengthWidget.type = "hidden";
+    strengthWidget.computeSize = () => [0, -4];
+
+    // Find position of lora widget to insert DOM widget there
+    const loraIndex = node.widgets.indexOf(loraWidget);
+
+    // Add DOM widget
+    const domWidget = node.addDOMWidget(loraName + "_combo", "lora_combo", container, {
+        getValue() {
+            return "";
+        },
+        setValue() {},
+        serialize: false,
+    });
+
+    // Move to correct position
+    const currentIndex = node.widgets.indexOf(domWidget);
+    if (currentIndex !== -1 && currentIndex !== loraIndex) {
+        node.widgets.splice(currentIndex, 1);
+        node.widgets.splice(loraIndex, 0, domWidget);
+    }
+
+    domWidget._isLoraCombo = true;
+    domWidget._refreshDOM = () => {
+        select.value = loraWidget.value;
+        strengthInput.value = strengthWidget.value;
+    };
 }
 
 function replaceWithToggleList(node, widgetName) {
@@ -334,6 +448,15 @@ app.registerExtension({
         const origOnNodeCreated = nodeType.prototype.onNodeCreated;
         nodeType.prototype.onNodeCreated = function () {
             origOnNodeCreated?.apply(this, arguments);
+
+            // Merge lora + strength into single rows
+            if (nodeData.name === "LoRAPromptSwitch") {
+                mergeLoraStrength(this, "lora_name", "strength");
+            } else if (nodeData.name === "DualLoRAPromptSwitch") {
+                mergeLoraStrength(this, "lora_high", "strength_high");
+                mergeLoraStrength(this, "lora_low", "strength_low");
+            }
+
             replaceWithToggleList(this, "add_positive");
             replaceWithToggleList(this, "add_negative");
         };
@@ -342,7 +465,7 @@ app.registerExtension({
         nodeType.prototype.onConfigure = function () {
             origOnConfigure?.apply(this, arguments);
             for (const w of this.widgets || []) {
-                if (w._isToggleList && w._refreshDOM) {
+                if ((w._isToggleList || w._isLoraCombo) && w._refreshDOM) {
                     w._refreshDOM();
                 }
             }

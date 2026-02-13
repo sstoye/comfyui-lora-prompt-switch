@@ -35,6 +35,7 @@ class LoRAPromptSwitch:
                 "negative_prompt": ("STRING", {"forceInput": True, "default": ""}),
                 "prompt_separator": ("STRING", {"default": ", "}),
                 "trailing_separator": ("BOOLEAN", {"default": True}),
+                "notes": ("STRING", {"default": "", "multiline": True, "placeholder": "Notes, links, usage hints..."}),
             }
         }
 
@@ -112,6 +113,7 @@ class DualLoRAPromptSwitch:
                 "negative_prompt": ("STRING", {"forceInput": True, "default": ""}),
                 "prompt_separator": ("STRING", {"default": ", "}),
                 "trailing_separator": ("BOOLEAN", {"default": True}),
+                "notes": ("STRING", {"default": "", "multiline": True, "placeholder": "Notes, links, usage hints..."}),
             }
         }
 
