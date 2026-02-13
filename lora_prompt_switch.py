@@ -24,7 +24,6 @@ class LoRAPromptSwitch:
             "required": {
                 "model": ("MODEL",),
                 "clip": ("CLIP",),
-                "enable": ("BOOLEAN", {"forceInput": True, "default": True}),
                 "lora_name": (lora_list,),
                 "strength": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
                 "add_positive": ("STRING", {"default": "", "multiline": True, "placeholder": "Additional positive prompt when enabled"}),
@@ -36,6 +35,7 @@ class LoRAPromptSwitch:
                 "prompt_separator": ("STRING", {"default": ", "}),
                 "trailing_separator": ("BOOLEAN", {"default": True}),
                 "notes": ("STRING", {"default": "", "multiline": True, "placeholder": "Notes, links, usage hints..."}),
+                "enable": ("BOOLEAN", {"default": True}),
             }
         }
 
@@ -44,9 +44,10 @@ class LoRAPromptSwitch:
     FUNCTION = "apply"
     CATEGORY = "loaders/lora"
 
-    def apply(self, model, clip, enable, lora_name, strength,
+    def apply(self, model, clip, lora_name, strength,
               add_positive, add_negative, **kwargs):
 
+        enable = kwargs.get("enable", True)
         positive_prompt = kwargs.get("positive_prompt", "")
         negative_prompt = kwargs.get("negative_prompt", "")
         prompt_separator = kwargs.get("prompt_separator", ", ")
@@ -98,7 +99,6 @@ class DualLoRAPromptSwitch:
             "required": {
                 "model_high": ("MODEL",),
                 "model_low": ("MODEL",),
-                "enable": ("BOOLEAN", {"forceInput": True, "default": True}),
                 "lora_high": (lora_list,),
                 "strength_high": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
                 "lora_low": (lora_list,),
@@ -114,6 +114,7 @@ class DualLoRAPromptSwitch:
                 "prompt_separator": ("STRING", {"default": ", "}),
                 "trailing_separator": ("BOOLEAN", {"default": True}),
                 "notes": ("STRING", {"default": "", "multiline": True, "placeholder": "Notes, links, usage hints..."}),
+                "enable": ("BOOLEAN", {"default": True}),
             }
         }
 
@@ -122,11 +123,12 @@ class DualLoRAPromptSwitch:
     FUNCTION = "apply"
     CATEGORY = "loaders/lora"
 
-    def apply(self, model_high, model_low, enable,
+    def apply(self, model_high, model_low,
               lora_high, strength_high,
               lora_low, strength_low,
               add_positive, add_negative, **kwargs):
 
+        enable = kwargs.get("enable", True)
         clip_high = kwargs.get("clip_high", None)
         clip_low = kwargs.get("clip_low", None)
         positive_prompt = kwargs.get("positive_prompt", "")

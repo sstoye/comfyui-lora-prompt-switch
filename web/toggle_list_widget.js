@@ -80,6 +80,7 @@ function injectStyles() {
             display: flex;
             flex-direction: column;
             gap: 3px;
+            min-height: 87px;
             max-height: 200px;
             overflow-y: auto;
             scrollbar-width: thin;
@@ -108,6 +109,12 @@ function injectStyles() {
             width: 100%;
             box-sizing: border-box;
             padding: 2px 4px;
+        }
+        .lora-combo-label {
+            font-size: 10px;
+            color: #888;
+            flex-shrink: 0;
+            user-select: none;
         }
         .lora-combo-row select {
             flex: 1;
@@ -143,7 +150,23 @@ function injectStyles() {
 }
 
 function parseValue(raw) {
-    if (!raw || !raw.trim()) {
+    if (!raw) {
+        return [{ text: "", enabled: true }];
+    }
+    // ComfyUI may pass already-parsed arrays/objects on workflow reload
+    if (Array.isArray(raw)) {
+        const entries = raw
+            .filter((e) => e && typeof e === "object")
+            .map((e) => ({
+                text: String(e.text || ""),
+                enabled: e.enabled !== false,
+            }));
+        return entries.length > 0 ? entries : [{ text: "", enabled: true }];
+    }
+    if (typeof raw !== "string") {
+        raw = String(raw);
+    }
+    if (!raw.trim()) {
         return [{ text: "", enabled: true }];
     }
     const trimmed = raw.trim();
@@ -202,17 +225,34 @@ function trySplitEntry(entries, index, renderEntries, node) {
     });
 }
 
+function hideWidget(widget) {
+    widget.type = "hidden";
+    widget.hidden = true;
+    widget.computeSize = () => [0, -4];
+    // Prevent canvas drawing
+    widget.draw = function () {};
+}
+
 function mergeLoraStrength(node, loraName, strengthName) {
     const loraWidget = node.widgets.find((w) => w.name === loraName);
     const strengthWidget = node.widgets.find((w) => w.name === strengthName);
     if (!loraWidget || !strengthWidget) return;
 
-    // Get lora options from the combo widget
+    // Get lora options and current value from the combo widget
     const loraOptions = loraWidget.options?.values || [];
+    let currentLoraValue = loraWidget.value;
+    const loraCallback = loraWidget.callback;
+    const loraIndex = node.widgets.indexOf(loraWidget);
 
     // Create combined container
     const container = document.createElement("div");
     container.className = "lora-combo-row";
+
+    // Label
+    const label = document.createElement("span");
+    label.className = "lora-combo-label";
+    label.textContent = loraName.replace(/_/g, " ");
+    container.appendChild(label);
 
     // Select dropdown
     const select = document.createElement("select");
@@ -220,12 +260,12 @@ function mergeLoraStrength(node, loraName, strengthName) {
         const option = document.createElement("option");
         option.value = opt;
         option.textContent = opt;
-        if (opt === loraWidget.value) option.selected = true;
+        if (opt === currentLoraValue) option.selected = true;
         select.appendChild(option);
     });
     select.addEventListener("change", () => {
-        loraWidget.value = select.value;
-        loraWidget.callback?.(select.value);
+        currentLoraValue = select.value;
+        loraCallback?.(select.value);
     });
     preventCanvasDrag(select);
 
@@ -247,25 +287,24 @@ function mergeLoraStrength(node, loraName, strengthName) {
     container.appendChild(select);
     container.appendChild(strengthInput);
 
-    // Hide original widgets visually (keep for serialization)
-    loraWidget.type = "hidden";
-    loraWidget.computeSize = () => [0, -4];
-    strengthWidget.type = "hidden";
-    strengthWidget.computeSize = () => [0, -4];
+    // Remove original lora widget from array (replaced by DOM widget below)
+    node.widgets.splice(loraIndex, 1);
 
-    // Find position of lora widget to insert DOM widget there
-    const loraIndex = node.widgets.indexOf(loraWidget);
+    // Hide strength widget visually (keep in array for serialization)
+    hideWidget(strengthWidget);
 
-    // Add DOM widget
-    const domWidget = node.addDOMWidget(loraName + "_combo", "lora_combo", container, {
+    // Add DOM widget that replaces the lora widget (serializes lora value)
+    const domWidget = node.addDOMWidget(loraName, "lora_combo", container, {
         getValue() {
-            return "";
+            return currentLoraValue;
         },
-        setValue() {},
-        serialize: false,
+        setValue(v) {
+            currentLoraValue = v;
+            select.value = v;
+        },
     });
 
-    // Move to correct position
+    // Move to same position as the original lora widget
     const currentIndex = node.widgets.indexOf(domWidget);
     if (currentIndex !== -1 && currentIndex !== loraIndex) {
         node.widgets.splice(currentIndex, 1);
@@ -274,7 +313,7 @@ function mergeLoraStrength(node, loraName, strengthName) {
 
     domWidget._isLoraCombo = true;
     domWidget._refreshDOM = () => {
-        select.value = loraWidget.value;
+        select.value = currentLoraValue;
         strengthInput.value = strengthWidget.value;
     };
 }
@@ -286,14 +325,15 @@ function replaceWithToggleList(node, widgetName) {
     const origWidget = node.widgets[origWidgetIndex];
     const origValue = origWidget.value || "";
 
-    // Fully clean up the original widget
+    // Fully clean up the original widget's DOM elements
     origWidget.onRemove?.();
-    if (origWidget.inputEl) {
-        origWidget.inputEl.remove();
-    }
-    if (origWidget.element) {
-        origWidget.element.remove();
-    }
+    const removeWidgetDOM = () => {
+        origWidget.inputEl?.remove();
+        origWidget.element?.remove();
+    };
+    removeWidgetDOM();
+    // Deferred cleanup: DOM elements may be created after onNodeCreated
+    requestAnimationFrame(removeWidgetDOM);
 
     // Internal state
     let entries = parseValue(origValue);
@@ -319,6 +359,11 @@ function replaceWithToggleList(node, widgetName) {
         setValue(v) {
             entries = parseValue(v);
             renderEntries();
+            // Resize node to fit entries after value is loaded
+            requestAnimationFrame(() => {
+                node.setSize(node.computeSize());
+                app.graph.setDirtyCanvas(true, false);
+            });
         },
     });
 
@@ -331,8 +376,16 @@ function replaceWithToggleList(node, widgetName) {
 
     domWidget._isToggleList = true;
     domWidget._refreshDOM = () => {
-        entries = parseValue(domWidget.value);
         renderEntries();
+    };
+
+    // Override computeSize to give toggle list enough height for entries
+    domWidget.computeSize = function () {
+        const entryH = 29; // row height + gap
+        const minRows = 3;
+        const visibleRows = Math.max(minRows, Math.min(entries.length, 7));
+        const height = 20 + visibleRows * entryH + 30; // label + entries + button
+        return [node.size[0], height];
     };
 
     renderEntries();
@@ -428,6 +481,28 @@ function replaceWithToggleList(node, widgetName) {
     }
 }
 
+const NODE_COLORS = {
+    enabled: { color: "#233", bgcolor: "#253" },
+    disabled: { color: "#322", bgcolor: "#422" },
+};
+
+function addEnableColorFeedback(node) {
+    const origOnDrawForeground = node.onDrawForeground;
+    node.onDrawForeground = function (ctx) {
+        const enableWidget = this.widgets?.find((w) => w.name === "enable");
+        if (enableWidget) {
+            const scheme = enableWidget.value ? NODE_COLORS.enabled : NODE_COLORS.disabled;
+            if (this.color !== scheme.color || this.bgcolor !== scheme.bgcolor) {
+                this.color = scheme.color;
+                this.bgcolor = scheme.bgcolor;
+            }
+        }
+        if (origOnDrawForeground) {
+            origOnDrawForeground.apply(this, arguments);
+        }
+    };
+}
+
 function preventCanvasDrag(el) {
     el.addEventListener("mousedown", (e) => e.stopPropagation());
     el.addEventListener("pointerdown", (e) => e.stopPropagation());
@@ -459,6 +534,15 @@ app.registerExtension({
 
             replaceWithToggleList(this, "add_positive");
             replaceWithToggleList(this, "add_negative");
+
+            // Color feedback based on enable toggle
+            addEnableColorFeedback(this);
+
+            // Resize node to fit all custom widgets
+            requestAnimationFrame(() => {
+                this.setSize(this.computeSize());
+                app.graph.setDirtyCanvas(true, false);
+            });
         };
 
         const origOnConfigure = nodeType.prototype.onConfigure;
@@ -469,6 +553,11 @@ app.registerExtension({
                     w._refreshDOM();
                 }
             }
+            // Resize after configure restores values
+            requestAnimationFrame(() => {
+                this.setSize(this.computeSize());
+                app.graph.setDirtyCanvas(true, false);
+            });
         };
     },
 });
